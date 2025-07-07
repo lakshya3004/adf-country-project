@@ -1,0 +1,9 @@
+{
+	"name": "ADFProjectCELEBAL",
+	"location": "southindia",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "03b21830-814c-419b-8638-c5f23e924b9e",
+		"tenantId": "4dab6891-63d9-4763-9e89-89dbb7e4d019"
+	}
+}

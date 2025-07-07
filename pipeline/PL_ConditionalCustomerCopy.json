@@ -1,0 +1,172 @@
+{
+	"name": "PL_ConditionalCustomerCopy",
+	"properties": {
+		"activities": [
+			{
+				"name": "LookupCustomerCount",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlSource",
+						"sqlReaderQuery": "SELECT COUNT(*) as count FROM Customer",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "ds_SQL_Customer",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "SetCustomerCountVariable",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "LookupCustomerCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "customerCount",
+					"value": {
+						"value": "@activity('LookupCustomerCount').output.firstRow.count",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "IfCustomerCountGreaterThan500",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "SetCustomerCountVariable",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(variables('customerCount'), 500)",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "CopyCustomerToADLS",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".txt"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "ds_SQL_Customer",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "ds_ADLS_Customer",
+									"type": "DatasetReference",
+									"parameters": {
+										"fileName": {
+											"value": "@concat('customer_', formatDateTime(utcNow(),'yyyyMMdd'))",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "ExecuteProductPipeline",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "CopyCustomerToADLS",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_ConditionalProductCopy",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"customerCount": {
+										"value": "@variables('customerCount')",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"variables": {
+			"customerCount": {
+				"type": "Integer"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2025-07-07T05:08:40Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
